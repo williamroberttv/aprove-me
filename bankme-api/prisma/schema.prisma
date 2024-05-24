@@ -11,12 +11,41 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = "linux-musl-openssl-3.0.x"
 }
 
 model User {
   id    String    @id @default(uuid())
   login  String
   password String
-
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
   @@map("users")
 }
+
+model Assignor {
+  id    String    @id @default(uuid())
+  document  String
+  email String
+  phone   String
+  name  String
+  receivables Receivable[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  @@map("assignors")
+}
+model Receivable {
+  id    String    @id @default(uuid())
+  value  Float
+  emissionDate DateTime @map("emission_date")
+  assignorId String @map("assignor_id")
+  assignor Assignor @relation(fields: [assignorId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  @@map("receivables")
+}
+
+
