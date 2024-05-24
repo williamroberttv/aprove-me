@@ -9,8 +9,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { IAssignor, IMessage, IReceivable } from '@shared/interfaces';
-import { CreateAssignorDto } from './dto/create-assignor.dto';
-import { CreateReceivableDto } from './dto/create-receivable.dto';
+import { PayableDto } from './dto/payable.dto';
 import { UpdateAssignorDto } from './dto/update-assignor.dto';
 import { UpdateReceivableDto } from './dto/update-receivable.dto';
 import { IntegrationsService } from './integrations.service';
@@ -22,10 +21,7 @@ export class IntegrationsController {
   @Post('payable')
   async createPayable(
     @Body()
-    payload: {
-      assignor: CreateAssignorDto;
-      receivable: CreateReceivableDto;
-    },
+    payload: PayableDto,
   ): Promise<IMessage> {
     try {
       return await this.integrationsService.createPayable(payload);

@@ -2,8 +2,7 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Assignor } from '@prisma/client';
 import { IAssignor, IMessage, IReceivable } from '@shared/interfaces';
 import { PrismaService } from '@shared/services';
-import { CreateAssignorDto } from './dto/create-assignor.dto';
-import { CreateReceivableDto } from './dto/create-receivable.dto';
+import { PayableDto } from './dto/payable.dto';
 import { UpdateAssignorDto } from './dto/update-assignor.dto';
 import { UpdateReceivableDto } from './dto/update-receivable.dto';
 
@@ -14,10 +13,7 @@ export class IntegrationsService {
     private readonly logger: Logger,
   ) {}
 
-  async createPayable(payload: {
-    assignor: CreateAssignorDto;
-    receivable: CreateReceivableDto;
-  }): Promise<IMessage> {
+  async createPayable(payload: PayableDto): Promise<IMessage> {
     try {
       await this.prismaService.$transaction(async (prisma) => {
         const { receivable } = payload;

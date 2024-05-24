@@ -1,4 +1,4 @@
-import { IsDate, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateReceivableDto {
   @IsNotEmpty({ message: 'value: O valor do recebivel é obrigatório.' })
@@ -8,14 +8,12 @@ export class CreateReceivableDto {
   )
   value: number;
 
-  @IsDate({
-    message: 'emissionDate: A data de emissão do recebivel deve ser uma data.',
-  })
   @IsNotEmpty({
     message: 'emissionDate: A data de emissão do recebivel é obrigatório.',
   })
   emissionDate: Date;
 
+  @IsOptional()
   @IsString({ message: 'assignorId: O id do cedente deve ser uma string.' })
   assignorId: string;
 }
