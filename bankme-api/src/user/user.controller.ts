@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Public } from '@shared/decorators';
 import { IUser } from '@shared/interfaces';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -16,6 +17,7 @@ export class UserController {
     return this.userService.findOne(id);
   }
 
+  @Public()
   @Post()
   async createUser(@Body() payload: CreateUserDto): Promise<IUser> {
     return new Promise((res) => res(payload as IUser));

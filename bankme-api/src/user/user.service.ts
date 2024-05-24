@@ -1,18 +1,14 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { IUser, PrismaService } from 'src/shared';
 
 @Injectable()
 export class UserService {
-  constructor(
-    private readonly logger: Logger,
-    private readonly prismaService: PrismaService,
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   async findAll(): Promise<IUser[]> {
     try {
       return await this.prismaService.user.findMany();
     } catch (error) {
-      this.logger.error(error);
       throw new HttpException(
         'Falha ao buscar usuários',
         HttpStatus.BAD_REQUEST,
@@ -27,9 +23,21 @@ export class UserService {
         },
       });
     } catch (error) {
-      this.logger.error(error);
       throw new HttpException(
         'Falha ao buscar usuário.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async create(payload: IUser): Promise<IUser> {
+    try {
+      return await this.prismaService.user.create({
+        data: payload,
+      });
+    } catch (error) {
+      throw new HttpException(
+        'Falha ao criar usuário.',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -53,7 +61,6 @@ export class UserService {
 
       return user;
     } catch (error) {
-      this.logger.error(error);
       throw new HttpException(
         'Falha ao validar usuário.',
         HttpStatus.BAD_REQUEST,

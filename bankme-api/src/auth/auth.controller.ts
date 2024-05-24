@@ -8,12 +8,11 @@ export class AuthController {
 
   @Post('login')
   async login(@Body() loginData: AuthDto): Promise<any> {
-    return this.authService.login(loginData);
+    return this.authService.signIn(loginData);
   }
 
   @Get('valid-token/:token')
-  async validToken(@Param('token') token: string): Promise<any> {
-    console.log(token);
-    // return this.authService.validToken(token);
+  async validToken(@Param('token') token: string): Promise<{ id: string }> {
+    return this.authService.validToken(token);
   }
 }
