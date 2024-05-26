@@ -8,6 +8,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { Ctx, EventPattern, RmqContext } from '@nestjs/microservices';
 import { IAssignor, IMessage, IReceivable } from '@shared/interfaces';
 import { PayableDto } from './dto/payable.dto';
 import { UpdateAssignorDto } from './dto/update-assignor.dto';
@@ -82,6 +83,33 @@ export class IntegrationsController {
     } catch (err) {
       throw new HttpException(
         'Erro ao atualizar cedente.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('payable/batch')
+  async createPayables(@Body() payload: PayableDto[]): Promise<IMessage> {
+    try {
+      return await this.integrationsService.createPayables(payload);
+    } catch (err) {
+      throw new HttpException(
+        'Erro ao criar recebiveis.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @EventPattern('payable')
+  async handlePayable(@Ctx() ctx: RmqContext): Promise<void> {
+    const channel = ctx.getChannelRef();
+    const content = ctx.getMessage().content.toString('utf-8');
+    try {
+      await this.integrationsService.createPayableFromQueue(content, channel);
+    } catch (err) {
+      await channel.ack(ctx.getMessage());
+      throw new HttpException(
+        'Erro ao criar recebivel',
         HttpStatus.BAD_REQUEST,
       );
     }

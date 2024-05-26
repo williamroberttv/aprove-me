@@ -48,4 +48,30 @@ model Receivable {
   @@map("receivables")
 }
 
+model Batch{
+  id   String    @id @default(uuid())
+  totalJobs Int @map("total_jobs")
+  sucessJobs Int @map("sucess_jobs") @default(0)
+  failedJobs Int @map("failed_jobs") @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  batchesPayables BatchesPayable[]
+  @@map("batches")
+}
+
+model BatchesPayable{
+  id   String    @id @default(uuid())
+  batchId String @map("batch_id")
+  batch Batch @relation(fields: [batchId], references: [id])
+  message String
+  status String?
+  attempts Int @default(0)
+  statusMessage String? @map("status_message")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  @@map("outbox_batches_payables")
+}
+
 

@@ -1,0 +1,27 @@
+version: '3'
+services:
+  bankme-api:
+    build:
+      context: ../
+      dockerfile: ci/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../.env
+    networks:
+      - bankme
+    depends_on:
+      - bankme-rabbitmq
+      - sqlite
+
+  bankme-rabbitmq:
+    image: "rabbitmq:3-management"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - bankme
+
+networks:
+  bankme:
+    driver: bridge
