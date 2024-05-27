@@ -5,12 +5,17 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { ClientProxy, RmqContext } from '@nestjs/microservices';
+import { ClientProxy } from '@nestjs/microservices';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Assignor } from '@prisma/client';
 import { IAssignor, IMessage, IReceivable } from '@shared/interfaces';
 import { PrismaService } from '@shared/services';
-import { MAX_BATCHES, MAX_RETRIES } from '@shared/utils';
+import {
+  MAX_BATCHES,
+  MAX_RETRIES,
+  RABBITMQ_QUEUE,
+  RABBITMQ_QUEUE_DLQ,
+} from '@shared/utils';
 import { PayableDto } from './dto/payable.dto';
 import { UpdateAssignorDto } from './dto/update-assignor.dto';
 import { UpdateReceivableDto } from './dto/update-receivable.dto';
@@ -20,61 +25,101 @@ export class IntegrationsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly logger: Logger,
-    @Inject('PAYABLE_SERVICE') private readonly client: ClientProxy,
+    @Inject(RABBITMQ_QUEUE) private readonly client: ClientProxy,
+    @Inject(RABBITMQ_QUEUE_DLQ) private readonly recoveryClient: ClientProxy,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async sendPayablesToQueue(): Promise<void> {
     try {
       const batches = await this.prismaService.batchesPayable.findMany({
         where: {
+          status: {
+            in: ['pending', 'failed'],
+          },
           attempts: {
-            lt: MAX_RETRIES,
+            lte: MAX_RETRIES,
           },
         },
       });
+
       for (const batch of batches) {
-        this.client.emit('payable', {
+        this.client.emit(RABBITMQ_QUEUE, {
           payable: batch.message,
           batchId: batch.id,
+          attempts: batch.attempts,
         });
       }
+
+      await this.prismaService.batchesPayable.updateMany({
+        where: {
+          id: {
+            in: batches.map((b) => b.id),
+          },
+        },
+        data: {
+          status: 'processing',
+          attempts: {
+            increment: 1,
+          },
+        },
+      });
+
       this.logger.log('[CronJob]: Enviando batches para fila!');
     } catch (err) {
       this.logger.log(err);
-      throw new HttpException(
-        'Erro ao enviar batches para fila',
-        HttpStatus.BAD_REQUEST,
-      );
     }
   }
 
+  // @Cron(CronExpression.EVERY_30_SECONDS)
+  // async handleFailedJobs(): Promise<void> {
+  //   try {
+  //     const batches = await this.prismaService.batchesPayable.findMany({
+  //       where: {
+  //         status: 'failed',
+  //         attempts: {
+  //           gte: MAX_RETRIES,
+  //         },
+  //       },
+  //     });
+
+  //     for (const batch of batches) {
+  //       this.recoveryClient.emit(RABBITMQ_QUEUE_DLQ, {
+  //         payable: batch.message,
+  //         batchId: batch.id,
+  //       });
+  //     }
+  //   } catch (err) {
+  //     this.logger.error(err);
+  //   }
+  // }
+
   async createPayable(payload: PayableDto): Promise<IMessage> {
     try {
-      await this.prismaService.$transaction(async (prisma) => {
-        const { receivable } = payload;
-        let assignor: Assignor;
-        assignor = await prisma.assignor.findFirst({
-          where: {
-            document: payload.assignor.document,
-          },
-        });
-
-        if (!assignor) {
-          assignor = await prisma.assignor.create({
-            data: payload.assignor,
-          });
-        }
-
-        const receivableData = {
-          ...receivable,
-          assignorId: assignor.id,
-        };
-
-        await prisma.receivable.create({
-          data: receivableData,
-        });
+      // await this.prismaService.$transaction(async (prisma) => {
+      const { receivable } = payload;
+      let assignor: Assignor;
+      assignor = await this.prismaService.assignor.findFirst({
+        where: {
+          document: payload.assignor.document,
+        },
       });
+
+      if (!assignor) {
+        assignor = await this.prismaService.assignor.create({
+          data: payload.assignor,
+        });
+      }
+
+      const receivableData = {
+        ...receivable,
+        assignorId: assignor.id,
+      };
+
+      await this.prismaService.receivable.create({
+        data: receivableData,
+      });
+      // });
 
       return { message: 'Recebivel criado com sucesso!' };
     } catch (err) {
@@ -250,39 +295,42 @@ export class IntegrationsService {
     }
   }
 
-  async createPayableFromQueue(
-    message: string,
-    ctx: RmqContext,
-  ): Promise<IMessage> {
-    const payload: { payable: PayableDto; batchId: string } =
-      JSON.parse(message);
+  async createPayableFromQueue(message: string): Promise<IMessage> {
+    const payload = JSON.parse(message);
+    const payable = JSON.parse(payload.data.payable) as PayableDto;
+    const batchId = payload.data.batchId as string;
     try {
-      if (!payload.payable) {
+      throw new HttpException('teste', HttpStatus.BAD_REQUEST);
+      if (!payable || !batchId) {
         throw new HttpException('Payload inválido', HttpStatus.BAD_REQUEST);
       }
-      return await this.createPayable(payload.payable);
-    } catch (err) {
-      this.logger.error(err);
-      const batchesPayable = await this.prismaService.batchesPayable.update({
+
+      await this.createPayable(payable);
+      await this.prismaService.batchesPayable.update({
         where: {
-          id: payload.batchId,
+          id: batchId,
         },
         data: {
+          status: 'completed',
+          statusMessage: 'Recebivel criado com sucesso!',
+        },
+      });
+
+      return { message: 'Recebivel criado com sucesso!' };
+    } catch (err) {
+      this.logger.error(err);
+      await this.prismaService.batchesPayable.update({
+        where: {
+          id: batchId,
+        },
+        data: {
+          status: 'failed',
+          statusMessage: 'Erro ao criar recebivel',
           attempts: {
             increment: 1,
           },
         },
       });
-      if (batchesPayable.attempts >= MAX_RETRIES) {
-        const channel = ctx.getChannelRef();
-        channel.sendToQueue(
-          process.env.RABBITMQ_QUEUE + '_DLQ',
-          Buffer.from(JSON.stringify(payload)),
-          {
-            headers: { 'x-attempts': batchesPayable.attempts },
-          },
-        );
-      }
       throw new HttpException(
         'Erro ao criar recebivel',
         HttpStatus.BAD_REQUEST,

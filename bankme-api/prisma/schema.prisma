@@ -11,7 +11,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = "linux-musl-openssl-3.0.x"
+  binaryTargets = ["linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 model User {
@@ -65,7 +65,7 @@ model BatchesPayable{
   batchId String @map("batch_id")
   batch Batch @relation(fields: [batchId], references: [id])
   message String
-  status String?
+  status String @default("pending")
   attempts Int @default(0)
   statusMessage String? @map("status_message")
   createdAt DateTime @default(now()) @map("created_at")

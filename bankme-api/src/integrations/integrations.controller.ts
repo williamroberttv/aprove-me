@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Ctx, EventPattern, RmqContext } from '@nestjs/microservices';
 import { IAssignor, IMessage, IReceivable } from '@shared/interfaces';
+import { RABBITMQ_QUEUE } from '@shared/utils';
 import { PayableDto } from './dto/payable.dto';
 import { UpdateAssignorDto } from './dto/update-assignor.dto';
 import { UpdateReceivableDto } from './dto/update-receivable.dto';
@@ -100,14 +101,15 @@ export class IntegrationsController {
     }
   }
 
-  @EventPattern('payable')
+  @EventPattern(RABBITMQ_QUEUE)
   async handlePayable(@Ctx() ctx: RmqContext): Promise<void> {
     const channel = ctx.getChannelRef();
     const content = ctx.getMessage().content.toString('utf-8');
     try {
-      await this.integrationsService.createPayableFromQueue(content, channel);
+      await this.integrationsService.createPayableFromQueue(content);
+      // await channel.ack(ctx.getMessage());
     } catch (err) {
-      await channel.ack(ctx.getMessage());
+      await channel.nack(ctx.getMessage(), false, false);
       throw new HttpException(
         'Erro ao criar recebivel',
         HttpStatus.BAD_REQUEST,
